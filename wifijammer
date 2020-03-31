@@ -30,7 +30,12 @@ T  = '\033[93m' # tan
 def parse_args():
     #Create the arguments
     parser = argparse.ArgumentParser()
-
+    parser.add_argument("-k",
+                        "--skipFull",
+                        nargs='*',
+                        default=[],
+                        help="path to macs to filter (each line contains one mac. \
+                                Example: -k /home/cyadmin/cyiot")
     parser.add_argument("-s",
                         "--skip",
                         nargs='*',
@@ -310,11 +315,13 @@ def output(err, monchannel):
             print '['+T+'*'+W+'] '+O+ap[0]+W+' - '+ap[1].ljust(2)+' - '+T+ap[2]+W
     print ''
 
-def noise_filter(skip, addr1, addr2):
+def noise_filter(skip, addr1, addr2,dataF):
     # Broadcast, broadcast, IPv6mcast, spanning tree, spanning tree, multicast, broadcast
     ignore = ['ff:ff:ff:ff:ff:ff', '00:00:00:00:00:00', '33:33:00:', '33:33:ff:', '01:80:c2:00:00:00', '01:00:5e:', mon_MAC]
     if skip:
         ignore += [addr.lower() for addr in skip]
+    if len(dataF) > 0:
+    	ignore += [addr.lower() for addr in dataF]
     for i in ignore:
         if i in addr1 or i in addr2:
             return True
@@ -355,6 +362,17 @@ def cb(pkt):
                 if not args.accesspoint.intersection([pkt.addr1.lower(), pkt.addr2.lower()]):
                     # pkt does not match our target list 
                     return
+            dataF = []
+            if args.skipFull:
+            	#print(args.skipFull)
+            	t = open(args.skipFull[0],"r")
+            	dataF = str(t.read()).lower()
+            	#print(dataF)
+            	dataF = dataF.split("\n")        	
+            	if dataF[-1] == "":
+            		del dataF[-1]
+            	if str(pkt.addr2).lower() in dataF or str(pkt.addr1).lower() in dataF:
+            		return
 
             if args.skip:
                 if pkt.addr2 in args.skip:
@@ -366,7 +384,7 @@ def cb(pkt):
 
             # Ignore all the noisy packets like spanning tree
 
-            if noise_filter(args.skip, pkt.addr1, pkt.addr2):
+            if noise_filter(args.skip, pkt.addr1, pkt.addr2,dataF):
                 return
 
             # Management = 1, data = 2
